@@ -84,7 +84,7 @@ ui <- fluidPage(
       uiOutput("xvar_out"),
       
       selectInput("table", "Table Type:",
-                  choices = c("None", "ANOVA", "Counts"),
+                  choices = c("None", "Counts", "ANOVA"),
                   multiple = FALSE,
                   selected = "None"),
       
@@ -105,7 +105,8 @@ ui <- fluidPage(
     mainPanel(
       
       plotOutput(outputId = "Plot_out"),
-      tableOutput("table_out"),
+      uiOutput("header"),
+      verbatimTextOutput("table_out"),
       verbatimTextOutput("ANOVA")
 
   )
@@ -116,11 +117,10 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
   
-  
-  plotDataR <- reactive({
-  
-    ##Restricting Data
+  ##Restricting Data
+  plotData1 <- reactive({
     
+
     #New Name
     data1 <- data
     
@@ -128,27 +128,23 @@ server <- function(input, output, session) {
     if("all" %in% input$groupID){
       if("all" %in% input$playerID){
         data1 <- data1
-      
+        
       } else{
-          data1 <- data1 %>% filter(PlayerID %in% input$playerID)
-        }
+        data1 <- data1 %>% filter(PlayerID %in% input$playerID)
+      }
       
     } else{
       if("all" %in% input$playerID){
         data1 <- data1 %>% filter(GroupID %in% input$groupID)
-      
+        
       } else{
-          data1 <- data1 %>% filter(GroupID %in% input$groupID, PlayerID %in% input$playerID)
-        }
+        data1 <- data1 %>% filter(GroupID %in% input$groupID, PlayerID %in% input$playerID)
+      }
     }
-  
     
     #Require input
     req(input$upgrades)
     
-    
-    ###For No Upgrades
-    if(input$upgrades == "No"){
     
     #Arranging data
     data1 <- data1 %>% arrange(GameNum)
@@ -158,6 +154,7 @@ server <- function(input, output, session) {
     
     #Removing Gamenum -1
     data1 <- data1 %>% filter(!(GameNum == -1))
+    
     
     #1. Removing if there werent exactly 2 locations
     #2. Filtering out players who used any upgrades
@@ -190,21 +187,35 @@ server <- function(input, output, session) {
       if(nlevels(temp$Virus) != 2){
         Index4 <- append(Index4, i)
       }
-      
-      
     }
     
+    #Removing marked game numbers
     data1 <- data1 %>% filter(!(data1$GameNum %in% Index),
-                              !(data1$GameNum %in% Index2),
                               !(data1$GameNum %in% Index3),
                               !(data1$GameNum %in% Index4))
     
-    ##Making Restructered Data Frame
-    #First Half
+    #If Upgrades is No
+    if(input$upgrades == "No"){
+    data1 <- data1 %>% filter(!(data1$GameNum %in% Index2))
+    }
+    
+    return(data1)
+    
+  })
+    
+  
+  ##Restructuring Data 
+  #First Half
+  plotData2 <- reactive({
+    
+    #Using Restricted Data
+    data1 <- plotData1()
+  
     
     #Setting up
     LocationCombination <- character()
     MedicineCombination <- character()
+    UpgradeCombination <- character()
     Health <- numeric()
     Funds <- numeric()
     
@@ -231,17 +242,56 @@ server <- function(input, output, session) {
       med2nd <- str_sub(med2nd, start = 5)
       
       MedicineCombination <- append(MedicineCombination, paste(med1st, med2nd, sep = ""))
+      
+      
+      #Upgrade Combination
+      if(input$upgrades == "Yes"){
+      
+      up1st <- temp1$Upgrade[1]
+      up2nd <- temp2$Upgrade[1]
+      
+      UpgradeCombination <- append(UpgradeCombination, paste(up1st, up2nd, sep = ""))
+      }
+      
     }
     
     
-    #Second Half
-   
-     #Fitering by player Virus choice
-      if(input$viruses == "Red"){
-      data1 <- data1 %>% filter(Virus == "red")
+    #Restrucured Data 
+    data_restructured <- data.frame(GameNum = sort(unique(data1$GameNum)),
+                                    LocationCombination = LocationCombination,
+                                    MedicineCombination = MedicineCombination,
+                                    Health = Health, Funds = Funds)
+    #Add 
+    if(input$upgrades == "Yes"){
+      data_restructured <- cbind(data_restructured, UpgradeCombination = UpgradeCombination)
+    }
     
+    return(data_restructured)
+  
+  })
+  
+  
+  plotDataR <- reactive({
+    
+    #Restructured data
+    data1 <- plotData1()
+    data_restructured <- plotData2()
+    
+
+    ##Restructuring Data
+    #Second half
+    
+    
+    #Fitering by player Virus choice
+    if(input$viruses == "Red"){
+      data1 <- data1 %>% filter(Virus == "red")
+      
     } else if(input$viruses == "Blue"){
       data1 <- data1 %>% filter(Virus == "blue")
+    
+    } else if(input$viruses == "Both"){
+      data1 <- data1
+      
     }
     
     #Arrange data again
@@ -263,154 +313,320 @@ server <- function(input, output, session) {
     
     
     #Restrucured Data 
-    data_restructured <- data.frame(GameNum = sort(unique(data1$GameNum)),
-                                    LocationCombination = LocationCombination,
-                                    MedicineCombination = MedicineCombination,
-                                    Health = Health, Funds = Funds,
-                                    Shot = Shot, Destroyed = Destroyed)
+    data_restructured <- cbind(data_restructured, Shot = Shot, Destroyed = Destroyed)
     
     #Adding Missed and Percent Destroyed Column
     data_restructured <- data_restructured %>% mutate(Missed = Shot - Destroyed,
                                                       PercentDestroyed = round((Destroyed/Shot)*100, 2))
-    
-    
-    
-    ###Upgrades are Allowed
-    } else {
-      
-      
-      #Arranging data
-      data1 <- data1 %>% arrange(GameNum)
-      
-      #Filering level and wave
-      data1 <- data1 %>% filter(Level == input$levels, Wave == input$waves)
-      
-      #Removing Gamenum -1
-      data1 <- data1 %>% filter(!(GameNum == -1))
-      
-      #1. Removing if there werent exactly 2 locations
-      #3. Filtering out players who have 5 or more rows
-      #4. Filtering out players if their two turrets only shot at one type of virus
-      
-      Index <- numeric()
-      Index3 <- numeric()
-      Index4 <- numeric()
-      
-      for(i in unique(data1$GameNum)){
-        
-        temp <- data1 %>% filter(GameNum == i)
-        temp$Location <- drop.levels(temp$Location)
-        temp$Virus <- drop.levels(temp$Virus)
-        
-        if(nlevels(temp$Location) != 2){
-          Index <- append(Index, i)
-        }
-        
-        if(nrow(temp) >= 5){
-          Index3 <- append(Index3, i)
-        }
-        
-        if(nlevels(temp$Virus) != 2){
-          Index4 <- append(Index4, i)
-        }
-        
-      }
-      
-      data1 <- data1 %>% filter(!(data1$GameNum %in% Index),
-                                !(data1$GameNum %in% Index3),
-                                !(data1$GameNum %in% Index4))
-
-      
-      ##Making Restructered Data Frame
-      #First Half
-      
-      #Setting up
-      LocationCombination <- character()
-      MedicineCombination <- character()
-      UpgradeCombination <- character()
-      Health <- numeric()
-      Funds <- numeric()
-      
-      #Filling up vectors for the above 4 columns
-      for(i in unique(data1$GameNum)){
-        
-        temp <- data1 %>% filter(GameNum == i)
-        
-        Funds <- append(Funds, temp$Funds[1])
-        Health <- append(Health, temp$Health[1])
-        
-        #Location Combination
-        loc <- sort(unique(temp$Location))
-        LocationCombination <- append(LocationCombination, paste(loc[1], loc[2], sep = ""))
-        
-        #Medicine Combination
-        temp1 <- temp %>% filter(Location == loc[1])
-        temp2 <- temp %>% filter(Location == loc[2])
-        
-        med1st <- temp1$Medicine[1]
-        med2nd <- temp2$Medicine[1]
-        
-        med1st <- str_sub(med1st, start = 5)
-        med2nd <- str_sub(med2nd, start = 5)
-        
-        MedicineCombination <- append(MedicineCombination, paste(med1st, med2nd, sep = ""))
-        
-        #Upgrade Combination
-        up1st <- temp1$Upgrade[1]
-        up2nd <- temp2$Upgrade[1]
-        
-        UpgradeCombination <- append(UpgradeCombination, paste(up1st, up2nd, sep = ""))
-      
-      }
-      
-      
-      #Second Half
-      
-      #Fitering by player Virus choice
-      if(input$viruses == "Red"){
-        data1 <- data1 %>% filter(Virus == "red")
-        
-      } else if(input$viruses == "Blue"){
-        data1 <- data1 %>% filter(Virus == "blue")
-      }
-      
-      
-      #Arrange data again
-      data1 <- data1 %>% arrange(GameNum)
-      
-      
-      #Setting Up
-      Destroyed <- numeric()
-      Shot <- numeric()
-      
-      #Filling up vectors 
-      for(i in unique(data1$GameNum)){
-        
-        temp <- data1 %>% filter(GameNum == i)
-        
-        Destroyed <- append(Destroyed, sum(temp$Destroyed))
-        Shot <- append(Shot, sum(temp$Shot))
-      }
-      
-      
-      #Restrucured Data 
-      data_restructured <- data.frame(GameNum = sort(unique(data1$GameNum)),
-                                      LocationCombination = LocationCombination,
-                                      MedicineCombination = MedicineCombination,
-                                      UpgradeCombination = UpgradeCombination,
-                                      Health = Health, Funds = Funds,
-                                      Shot = Shot, Destroyed = Destroyed)
-      
-      #Adding Missed and Percent Destroyed Column
-      data_restructured <- data_restructured %>% mutate(Missed = Shot - Destroyed,
-                                                        PercentDestroyed = round((Destroyed/Shot)*100, 2))
-      
   
-    }
-    
     return(data_restructured)
     
   })
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  # plotDataROld <- reactive({
+  # 
+  #   ##Restricting Data
+  #   
+  #   #New Name
+  #   data1 <- data
+  #   
+  #   #Filtering by GroupID and PlayerID
+  #   if("all" %in% input$groupID){
+  #     if("all" %in% input$playerID){
+  #       data1 <- data1
+  #     
+  #     } else{
+  #         data1 <- data1 %>% filter(PlayerID %in% input$playerID)
+  #       }
+  #     
+  #   } else{
+  #     if("all" %in% input$playerID){
+  #       data1 <- data1 %>% filter(GroupID %in% input$groupID)
+  #     
+  #     } else{
+  #         data1 <- data1 %>% filter(GroupID %in% input$groupID, PlayerID %in% input$playerID)
+  #       }
+  #   }
+  # 
+  #   #Require input
+  #   req(input$upgrades)
+  #   
+  #   
+  #   ###For No Upgrades
+  #   if(input$upgrades == "No"){
+  #   
+  #   #Arranging data
+  #   data1 <- data1 %>% arrange(GameNum)
+  #   
+  #   #Filering level and wave
+  #   data1 <- data1 %>% filter(Level == input$levels, Wave == input$waves)
+  #   
+  #   #Removing Gamenum -1
+  #   data1 <- data1 %>% filter(!(GameNum == -1))
+  #   
+  #   #1. Removing if there werent exactly 2 locations
+  #   #2. Filtering out players who used any upgrades
+  #   #3. Filtering out players who have 5 or more rows
+  #   #4. Filtering out players if their two turrets only shot at one type of virus
+  #   Index <- numeric()
+  #   Index2 <- numeric()
+  #   Index3 <- numeric()
+  #   Index4 <- numeric()
+  #   
+  #   for(i in unique(data1$GameNum)){
+  #     
+  #     temp <- data1 %>% filter(GameNum == i)
+  #     temp$Location <- drop.levels(temp$Location)
+  #     temp$Virus <- drop.levels(temp$Virus)
+  #     
+  #     if(nlevels(temp$Location) != 2){
+  #       Index <- append(Index, i)
+  #     }
+  #     
+  #     if("1Fast" %in% temp$Upgrade | 
+  #        "1Far" %in% temp$Upgrade){
+  #       Index2 <- append(Index2, i)
+  #     }
+  #     
+  #     if(nrow(temp) >= 5){
+  #       Index3 <- append(Index3, i)
+  #     }
+  #     
+  #     if(nlevels(temp$Virus) != 2){
+  #       Index4 <- append(Index4, i)
+  #     }
+  #     
+  #     
+  #   }
+  #   
+  #   data1 <- data1 %>% filter(!(data1$GameNum %in% Index),
+  #                             !(data1$GameNum %in% Index2),
+  #                             !(data1$GameNum %in% Index3),
+  #                             !(data1$GameNum %in% Index4))
+  #   
+  #   ##Making Restructered Data Frame
+  #   #First Half
+  #   
+  #   #Setting up
+  #   LocationCombination <- character()
+  #   MedicineCombination <- character()
+  #   Health <- numeric()
+  #   Funds <- numeric()
+  #   
+  #   #Filling up vectors for the above 4 columns
+  #   for(i in unique(data1$GameNum)){
+  #     
+  #     temp <- data1 %>% filter(GameNum == i)
+  #     
+  #     Funds <- append(Funds, temp$Funds[1])
+  #     Health <- append(Health, temp$Health[1])
+  #     
+  #     #Location Combination
+  #     loc <- sort(unique(temp$Location))
+  #     LocationCombination <- append(LocationCombination, paste(loc[1], loc[2], sep = ""))
+  #     
+  #     #Medicine Combination
+  #     temp1 <- temp %>% filter(Location == loc[1])
+  #     temp2 <- temp %>% filter(Location == loc[2])
+  #     
+  #     med1st <- temp1$Medicine[1]
+  #     med2nd <- temp2$Medicine[1]
+  #     
+  #     med1st <- str_sub(med1st, start = 5)
+  #     med2nd <- str_sub(med2nd, start = 5)
+  #     
+  #     MedicineCombination <- append(MedicineCombination, paste(med1st, med2nd, sep = ""))
+  #   }
+  #   
+  #   
+  #   #Second Half
+  #  
+  #    #Fitering by player Virus choice
+  #     if(input$viruses == "Red"){
+  #     data1 <- data1 %>% filter(Virus == "red")
+  #   
+  #   } else if(input$viruses == "Blue"){
+  #     data1 <- data1 %>% filter(Virus == "blue")
+  #   }
+  #   
+  #   #Arrange data again
+  #   data1 <- data1 %>% arrange(GameNum)
+  #   
+  # 
+  #   #Setting Up
+  #   Destroyed <- numeric()
+  #   Shot <- numeric()
+  #   
+  #   #Filling up vectors 
+  #   for(i in unique(data1$GameNum)){
+  #     
+  #     temp <- data1 %>% filter(GameNum == i)
+  #     
+  #     Destroyed <- append(Destroyed, sum(temp$Destroyed))
+  #     Shot <- append(Shot, sum(temp$Shot))
+  #   }
+  #   
+  #   
+  #   #Restrucured Data 
+  #   data_restructured <- data.frame(GameNum = sort(unique(data1$GameNum)),
+  #                                   LocationCombination = LocationCombination,
+  #                                   MedicineCombination = MedicineCombination,
+  #                                   Health = Health, Funds = Funds,
+  #                                   Shot = Shot, Destroyed = Destroyed)
+  #   
+  #   #Adding Missed and Percent Destroyed Column
+  #   data_restructured <- data_restructured %>% mutate(Missed = Shot - Destroyed,
+  #                                                     PercentDestroyed = round((Destroyed/Shot)*100, 2))
+  #   
+  #   
+  #   
+  #   ###Upgrades are Allowed
+  #   } else {
+  #     
+  #     
+  #     #Arranging data
+  #     data1 <- data1 %>% arrange(GameNum)
+  #     
+  #     #Filering level and wave
+  #     data1 <- data1 %>% filter(Level == input$levels, Wave == input$waves)
+  #     
+  #     #Removing Gamenum -1
+  #     data1 <- data1 %>% filter(!(GameNum == -1))
+  #     
+  #     #1. Removing if there werent exactly 2 locations
+  #     #3. Filtering out players who have 5 or more rows
+  #     #4. Filtering out players if their two turrets only shot at one type of virus
+  #     
+  #     Index <- numeric()
+  #     Index3 <- numeric()
+  #     Index4 <- numeric()
+  #     
+  #     for(i in unique(data1$GameNum)){
+  #       
+  #       temp <- data1 %>% filter(GameNum == i)
+  #       temp$Location <- drop.levels(temp$Location)
+  #       temp$Virus <- drop.levels(temp$Virus)
+  #       
+  #       if(nlevels(temp$Location) != 2){
+  #         Index <- append(Index, i)
+  #       }
+  #       
+  #       if(nrow(temp) >= 5){
+  #         Index3 <- append(Index3, i)
+  #       }
+  #       
+  #       if(nlevels(temp$Virus) != 2){
+  #         Index4 <- append(Index4, i)
+  #       }
+  #       
+  #     }
+  #     
+  #     data1 <- data1 %>% filter(!(data1$GameNum %in% Index),
+  #                               !(data1$GameNum %in% Index3),
+  #                               !(data1$GameNum %in% Index4))
+  # 
+  #     
+  #     ##Making Restructered Data Frame
+  #     #First Half
+  #     
+  #     #Setting up
+  #     LocationCombination <- character()
+  #     MedicineCombination <- character()
+  #     UpgradeCombination <- character()
+  #     Health <- numeric()
+  #     Funds <- numeric()
+  #     
+  #     #Filling up vectors for the above 4 columns
+  #     for(i in unique(data1$GameNum)){
+  #       
+  #       temp <- data1 %>% filter(GameNum == i)
+  #       
+  #       Funds <- append(Funds, temp$Funds[1])
+  #       Health <- append(Health, temp$Health[1])
+  #       
+  #       #Location Combination
+  #       loc <- sort(unique(temp$Location))
+  #       LocationCombination <- append(LocationCombination, paste(loc[1], loc[2], sep = ""))
+  #       
+  #       #Medicine Combination
+  #       temp1 <- temp %>% filter(Location == loc[1])
+  #       temp2 <- temp %>% filter(Location == loc[2])
+  #       
+  #       med1st <- temp1$Medicine[1]
+  #       med2nd <- temp2$Medicine[1]
+  #       
+  #       med1st <- str_sub(med1st, start = 5)
+  #       med2nd <- str_sub(med2nd, start = 5)
+  #       
+  #       MedicineCombination <- append(MedicineCombination, paste(med1st, med2nd, sep = ""))
+  #       
+  #       #Upgrade Combination
+  #       up1st <- temp1$Upgrade[1]
+  #       up2nd <- temp2$Upgrade[1]
+  #       
+  #       UpgradeCombination <- append(UpgradeCombination, paste(up1st, up2nd, sep = ""))
+  #     
+  #     }
+  #     
+  #     
+  #     #Second Half
+  #     
+  #     #Fitering by player Virus choice
+  #     if(input$viruses == "Red"){
+  #       data1 <- data1 %>% filter(Virus == "red")
+  #       
+  #     } else if(input$viruses == "Blue"){
+  #       data1 <- data1 %>% filter(Virus == "blue")
+  #     }
+  #     
+  #     
+  #     #Arrange data again
+  #     data1 <- data1 %>% arrange(GameNum)
+  #     
+  #     
+  #     #Setting Up
+  #     Destroyed <- numeric()
+  #     Shot <- numeric()
+  #     
+  #     #Filling up vectors 
+  #     for(i in unique(data1$GameNum)){
+  #       
+  #       temp <- data1 %>% filter(GameNum == i)
+  #       
+  #       Destroyed <- append(Destroyed, sum(temp$Destroyed))
+  #       Shot <- append(Shot, sum(temp$Shot))
+  #     }
+  #     
+  #     
+  #     #Restrucured Data 
+  #     data_restructured <- data.frame(GameNum = sort(unique(data1$GameNum)),
+  #                                     LocationCombination = LocationCombination,
+  #                                     MedicineCombination = MedicineCombination,
+  #                                     UpgradeCombination = UpgradeCombination,
+  #                                     Health = Health, Funds = Funds,
+  #                                     Shot = Shot, Destroyed = Destroyed)
+  #     
+  #     #Adding Missed and Percent Destroyed Column
+  #     data_restructured <- data_restructured %>% mutate(Missed = Shot - Destroyed,
+  #                                                       PercentDestroyed = round((Destroyed/Shot)*100, 2))
+  #     
+  # 
+  #   }
+  #   
+  #   return(data_restructured)
+  #   
+  # })
+  # 
+  
+  ##Creating Inputs
   
   #Dynamic PlayerID Input
   observe({
@@ -478,12 +694,14 @@ server <- function(input, output, session) {
   
   #Creating Visualization
   output$Plot_out <- renderPlot({
+    
 
     #Reactive Data
     plot_data <- plotDataR()
     
     #Y Variable
     yvar <- sym(input$yvar)
+    
     
     #For Subtitle and Main Effects Color
     if(input$viruses == "Both"){
@@ -498,6 +716,7 @@ server <- function(input, output, session) {
       subt <- "Data: Blue Virus"
       col <- "blue1"
     }
+  
     
     #No Upgrades
     if(input$upgrades == "No"){
@@ -556,13 +775,15 @@ server <- function(input, output, session) {
       
      }
     
-      
+
     #With Upgrades
     } else{
+    
       
       #No Facet Option  
       if(input$facets == FALSE){ 
-      
+        
+    
         #Main Effects Plot
         if(input$plot == "Main Effects Plot"){
           
@@ -682,7 +903,7 @@ server <- function(input, output, session) {
   
 
   #Table Output
-  output$table_out <- renderTable({
+  output$table_out <- renderPrint({
 
     #Reactive Data
     plot_data <- plotDataR()
@@ -690,17 +911,48 @@ server <- function(input, output, session) {
     #If Table input is Count
     if(input$table == "Counts"){
 
-      my_table <- plot_data %>% count(LocationCombination, MedicineCombination)
+      #Header
+      output$header <- renderUI({
+        h4("Counts Table:")
+      }) 
+      
+      #If there are data points
+      if(nrow(plot_data) > 0){
+      my_table <- table(plot_data$LocationCombination, plot_data$MedicineCombination)
+      return(my_table)
+      
+      #If there are no data points
+      } else {
+        
+     "There is no data."
+      }
+      
     
+      
     #If Table input is None
     } else if(input$table == "None"){
         
-      my_table <- data.frame()
+      #Empty string
+      my_table <- ""
+      
+      return(invisible(my_table))
+       
+      }
+  })
+  
+  
+  #Removing Header if None is selected for the table option
+  observeEvent(input$table, {
+    
+    if(input$table == "None"){
+      output$header <- renderUI({
+        ""}) 
+      
     }
   })
-    
-    
- 
+  
+  
+  
   #ANOVA Output
   output$ANOVA <- renderPrint({
     
@@ -718,7 +970,12 @@ server <- function(input, output, session) {
     MedicineVariable <- drop.levels(MedicineVariable)
     YVariable <- plot_data %>% pull(input$yvar)
     
-   
+    #Header
+    output$header <- renderUI({
+      h4("ANOVA Table:")
+    }) 
+    
+    
     #No Upgrades
     if(input$upgrades == "No"){
 
@@ -726,6 +983,7 @@ server <- function(input, output, session) {
     if(input$plot == "Main Effects Plot"){
 
       if(nlevels(XVariable) > 1){
+      
       anova_model <- aov(YVariable ~ XVariable)
       
       #Making Tidy table and adding columns/rows
@@ -739,8 +997,8 @@ server <- function(input, output, session) {
       
       return(tidyanova)
 
+      #Error message
       } else{
-        
         "More than one level needed to run the ANOVA."
       }
 
@@ -761,6 +1019,7 @@ server <- function(input, output, session) {
       
       return(tidyanova)
 
+      #Error message
       } else{
         "More than one level needed to run the ANOVA."
       }
@@ -769,10 +1028,12 @@ server <- function(input, output, session) {
     #With Upgrades
     } else {
 
+      
       #Setting Up
       UpgradeVariable <- plot_data %>% pull(UpgradeCombination)
       UpgradeVariable <- drop.levels(UpgradeVariable)
 
+      #If facet checkbox is selected
       if(input$facets == TRUE){
 
         #Two Way ANOVA
@@ -793,6 +1054,7 @@ server <- function(input, output, session) {
             
             return(tidyanova)
 
+            #Error message
              } else{
               "More than one level needed to run the ANOVA."
               }
@@ -819,11 +1081,13 @@ server <- function(input, output, session) {
             return(tidyanova)
 
             
+          #Error message  
           } else{
             "More than one level needed to run the ANOVA."
           }
         }
       
+        #If facet checkbox is not selected 
       } else if(input$facets == FALSE){
   
          "The facet checkbox must be selected to run the ANOVA."
