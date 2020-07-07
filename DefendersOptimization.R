@@ -10,7 +10,7 @@ library(broom)
 library(gdata)
 library(stats)
 library(curl)
-
+ 
 
 #Loading in Defenders Data
 data <- readr::read_csv("https://www.stat2games.sites.grinnell.edu/data/defenders/getdata.php") 
