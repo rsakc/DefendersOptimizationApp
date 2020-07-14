@@ -1,4 +1,4 @@
-#Last Updated on July 13 2020
+#Last Updated on July 14 2020
 
 #Loading Packages
 library(shiny)
@@ -21,6 +21,10 @@ data <- readr::read_csv("https://www.stat2games.sites.grinnell.edu/data/defender
 data <- data %>% mutate(Date = str_sub(Date, 1, 10))
 data$Date <- as.Date(data$Date, format = "%Y-%m-%d")
 data <- data %>% filter(Date >= as.Date("08/02/2019", format = "%m/%d/%Y"))
+
+#To Lower
+data.all$PlayerID <- tolower(data.all$PlayerID)
+data.all$GroupID <- tolower(data.all$GroupID)
 
 #Making Location and Virus a factor
 data$Location <- as.factor(data$Location)
