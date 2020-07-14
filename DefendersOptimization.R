@@ -101,8 +101,11 @@ ui <- fluidPage(
       
       uiOutput("facets_out"),
       
-      downloadButton('downloadData', label = "Defenders Data")
+      downloadButton('downloadData', label = "Defenders Data"),
       
+      a(h5("Instructor Details"),
+        href="https://stat2labs.sites.grinnell.edu/defenders.html", 
+        align="left", target = "_blank")
       
       
     ),
