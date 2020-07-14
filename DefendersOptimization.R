@@ -23,8 +23,8 @@ data$Date <- as.Date(data$Date, format = "%Y-%m-%d")
 data <- data %>% filter(Date >= as.Date("08/02/2019", format = "%m/%d/%Y"))
 
 #To Lower
-data.all$PlayerID <- tolower(data.all$PlayerID)
-data.all$GroupID <- tolower(data.all$GroupID)
+data$PlayerID <- tolower(data$PlayerID)
+data$GroupID <- tolower(data$GroupID)
 
 #Making Location and Virus a factor
 data$Location <- as.factor(data$Location)
