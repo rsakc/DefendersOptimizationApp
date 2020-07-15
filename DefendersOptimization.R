@@ -1,4 +1,4 @@
-#Last Updated on July 14 2020
+#Last Updated on July 15 2020
 
 #Loading Packages
 library(shiny)
@@ -14,9 +14,16 @@ library(stats)
 library(curl)
  
 
-#Loading in Defenders Data
-data <- readr::read_csv("https://www.stat2games.sites.grinnell.edu/data/defenders/getdata.php") 
+#Importing Data
+n <- sample(c(0,1), size = 1)
 
+if(n == 0){
+  data <- readr::read_csv("https://www.stat2games.sites.grinnell.edu/data/defenders/getdata.php") 
+
+} else{
+  data <- readr::read_csv("https://www.stat2games.sites.grinnell.edu/data/defenders/getdata.php") 
+}
+  
 #Keeping Data after August 2nd
 data <- data %>% mutate(Date = str_sub(Date, 1, 10))
 data$Date <- as.Date(data$Date, format = "%Y-%m-%d")
