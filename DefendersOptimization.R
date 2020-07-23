@@ -1,4 +1,4 @@
-#Last Updated on July 15 2020
+#Last Updated on July 23 2020
 
 #Loading Packages
 library(shiny)
@@ -119,18 +119,15 @@ ui <- fluidPage(
     
     #Outputs
     mainPanel(
-      
       plotOutput(outputId = "Plot_out"),
       uiOutput("header"),
       verbatimTextOutput("table_out"),
       verbatimTextOutput("ANOVA")
 
-  )
-  
-  )
-)
+  )))
 
 
+#Server
 server <- function(input, output, session) {
   
   ##Restricted Data
@@ -383,7 +380,6 @@ server <- function(input, output, session) {
   
   
   #Dynamic X Variable Input
-  
   output$xvar_out <- renderUI({
     
     if(input$plot == "Main Effects Plot"){
@@ -446,7 +442,7 @@ server <- function(input, output, session) {
         main_data <- plot_data %>% group_by_at(input$xvar) %>%
           summarize(Mean = mean(!!yvar))
 
-
+        #Creating visual
         my_plot <- ggplot(data = main_data, aes_string(x = input$xvar, y = "Mean", group = 1)) +
           geom_point(color = col) +
           geom_path(color = col) +
@@ -462,15 +458,13 @@ server <- function(input, output, session) {
                 legend.title = element_text(size = 18), 
                 axis.text.y = element_text(size = 14))
         
-              
-
-        
+            
       #Interaction Plot  
       } else{ 
       
       int_data <- plot_data %>% group_by(LocationCombination, MedicineCombination) %>% 
                                            summarize(Mean = mean(!!yvar))
-      
+      #Creating visual
      my_plot <-  ggplot(data = int_data, aes(x = LocationCombination, y = Mean, color = MedicineCombination, group = MedicineCombination)) +
         geom_point() +
         geom_line() +
@@ -509,6 +503,7 @@ server <- function(input, output, session) {
       main_data_u <- plot_data %>% group_by_at(input$xvar) %>% 
        summarize(Mean = mean(!!yvar))
       
+      #Creating visual
      my_plot <- ggplot(data = main_data_u, aes_string(x = input$xvar, y = "Mean", group = 1)) +
         geom_point(color = col) +
         geom_path(color = col) +
@@ -531,6 +526,7 @@ server <- function(input, output, session) {
     int_data_u <- plot_data %>% group_by(LocationCombination, MedicineCombination) %>% 
         summarize(Mean = mean(!!yvar))
     
+    #Creating visual
     my_plot <- ggplot(data = int_data_u, aes(x = LocationCombination, y = Mean, color = MedicineCombination, group = MedicineCombination)) +
       geom_point() +
       geom_line() +
@@ -565,6 +561,7 @@ server <- function(input, output, session) {
           main_data_uf <- plot_data %>% group_by(!!xvar, UpgradeCombination) %>% 
             summarize(Mean = mean(!!yvar))
         
+          #Creating visual
           my_plot <- ggplot(data = main_data_uf, aes_string(x = input$xvar, y = "Mean", group = 1)) +
             geom_point(color = col) +
             geom_path(color = col) +
@@ -589,6 +586,7 @@ server <- function(input, output, session) {
           int_data_uf<- plot_data %>% group_by(LocationCombination, MedicineCombination, UpgradeCombination) %>% 
             summarize(Mean = mean(!!yvar))
           
+          #Creating visual
           my_plot <- ggplot(data = int_data_uf, aes(x = LocationCombination, y = Mean, color = MedicineCombination, group = MedicineCombination)) +
             geom_point() +
             geom_line() +
@@ -611,6 +609,7 @@ server <- function(input, output, session) {
       }
     }
     
+    #Returning visual
     return(my_plot)
     
   })
@@ -665,8 +664,7 @@ server <- function(input, output, session) {
     }
   })
   
-  
-  
+
   #ANOVA Output
   output$ANOVA <- renderPrint({
     
@@ -814,7 +812,7 @@ server <- function(input, output, session) {
   })
 
   
-  
+  #Download data
   output$downloadData <- downloadHandler(
     filename = function() {
       paste('Data-', Sys.Date(), '.csv', sep="")
@@ -824,6 +822,7 @@ server <- function(input, output, session) {
       
     })
 
+#Closes server
 }
 
 #Creating Shiny App
